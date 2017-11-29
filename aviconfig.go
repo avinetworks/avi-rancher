@@ -19,8 +19,8 @@ const (
 	AVI_CA_CERT_PATH         = "AVI_CA_CERT_PATH"
 	AVI_CLOUD_NAME           = "AVI_CLOUD_NAME"
 	LB_TARGET_RANCHER_SUFFIX = "LB_TARGET_RANCHER_SUFFIX"
-	AVI_DNS_SUBDOMAIN   = "AVI_DNS_SUBDOMAIN"
-	AVI_TENANT   = "AVI_TENANT"
+	AVI_DNS_SUBDOMAIN        = "AVI_DNS_SUBDOMAIN"
+	AVI_TENANT               = "AVI_TENANT"
 
 	// Avi password configured as avi-creds secret in Rancher
 	AVI_SECRETES_FILE = "/run/secrets/avi-creds"

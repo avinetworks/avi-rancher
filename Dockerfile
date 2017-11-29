@@ -1,4 +1,4 @@
-FROM ubuntu:14.04.3
+FROM ubuntu:16.04
 ADD . /code
 WORKDIR /code
-CMD ./external-lb
+CMD ./avi-rancher
