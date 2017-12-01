@@ -12,7 +12,7 @@
     - variable: "AVI_PASSWORD"
       label: "Avi user account password"
       description: "Password for your account on Avi Controller"
-      type: "string"
+      type: "password"
       required: false
     - variable: "AVI_CONTROLLER_ADDR"
       label: "Avi Controller IP Address"
@@ -35,12 +35,6 @@
       required: false
       type: "boolean"
       default: false
-    - variable: "LB_TARGET_RANCHER_SUFFIX"
-      label: "Avi pool name suffix"
-      description: "Pool names in Avi created/updated by Rancher will have this suffix"
-      type: "string"
-      required: true
-      default: rancher.internal
     - variable: "AVI_DNS_SUBDOMAIN"
       label: "Avi VS subdomain"
       description: "Avi Virtual services are created with the subdomain config"

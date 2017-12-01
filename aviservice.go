@@ -9,23 +9,29 @@ import (
 )
 
 const (
-	APP_PROFILE_HTTPS = "System-Secure-HTTP"
-	APP_PROFILE_HTTP  = "System-HTTP"
-	APP_PROFILE_L4   = "System-L4-Application"
-	APP_PROFILE_SSL = "System-SSL-Application"
-	NET_PROFILE_TCP = "System-TCP-Proxy"
-	NET_PROFILE_UDP = "System-UDP-Fast-Path"
-	HEALTH_MONITOR_HTTPS = "System-HTTPS"
-	HEALTH_MONITOR_HTTP = "System-HTTP"
-	HEALTH_MONITOR_TCP = "System-TCP"
-	HEALTH_MONITOR_UDP = "System-UDP"
-	SSL_PROFILE = "System-Standard"
-	SSL_STANDARD_CERT = "System-Default-Cert"
+	APP_PROFILE_HTTPS           = "System-Secure-HTTP"
+	APP_PROFILE_HTTP            = "System-HTTP"
+	APP_PROFILE_L4              = "System-L4-Application"
+	APP_PROFILE_SSL             = "System-SSL-Application"
+	NET_PROFILE_TCP             = "System-TCP-Proxy"
+	NET_PROFILE_UDP             = "System-UDP-Fast-Path"
+	HEALTH_MONITOR_HTTPS        = "System-HTTPS"
+	HEALTH_MONITOR_HTTP         = "System-HTTP"
+	HEALTH_MONITOR_TCP          = "System-TCP"
+	HEALTH_MONITOR_UDP          = "System-UDP"
+	SSL_PROFILE                 = "System-Standard"
+	SSL_STANDARD_CERT           = "System-Default-Cert"
+
+
+	AVI_INTEGRATION_LABEL       = "avi_proxy"
+	AVI_SSL_LABEL               = "avi_ssl_key_and_certificate_refs"
+	AVI_CLOOUD_REF              = "avi_cloud_ref"
+	AVI_FQDN                    = "avi_fqdn"
+	AVI_APPLICATION_PROFILE_REF = "avi_application_profile_ref"
 )
 
 type Vservice struct {
         serviceName string
-        poolName    string
         labels      map[string]string // list of lables on services
         pools       []pool // Pool servers in Avi
 }
@@ -33,13 +39,36 @@ type Vservice struct {
 type pool struct {
         protocol    string // tcp/udp
         hostip string // Host IP
+        poolName    string
         ports map[int]int // Host to Container port mapping
+}
+
+func update_labels_data(task *Vservice, vs map[string]interface{}) map[string]interface{} {
+	cloud, ok := task.labels[AVI_CLOOUD_REF]
+	if ok {
+		vs["cloud_ref"] = "/api/cloud?name="+cloud
+		log.Info("Overwriting the service cloud with ", cloud)
+	}
+	fqdn, ok := task.labels[AVI_FQDN]
+	if ok {
+		vs["fqdn"] = fqdn
+		log.Info("Overwriting the service fqdn with ", fqdn)
+	}
+	app, ok := task.labels[AVI_APPLICATION_PROFILE_REF]
+	if ok {
+		vs["application_profile_ref"] = "/api/applicationprofile?name="+app
+		log.Info("Overwriting the service application profile with ", app)
+		if app == APP_PROFILE_HTTPS {
+			vs["ssl_key_and_certificate_refs"] = configure_ssl(task)
+			vs["services"] = configure_services(task, vs)
+		}
+	}
+	return vs
 }
 
 func CalculateChecksum(task *Vservice) []byte {
 	h := md5.New()
 	io.WriteString(h, task.serviceName)
-	io.WriteString(h, task.poolName)
 	for key, val := range task.labels {
 		label := key+":"+val
 		io.WriteString(h, label)
@@ -47,6 +76,7 @@ func CalculateChecksum(task *Vservice) []byte {
 	for _, val := range task.pools {
 		io.WriteString(h, val.protocol)
 		io.WriteString(h, val.hostip)
+		io.WriteString(h, val.poolName)
 		for publicport, privateport := range val.ports {
 			io.WriteString(h, strconv.Itoa(publicport))
 			io.WriteString(h, strconv.Itoa(privateport))
@@ -97,7 +127,7 @@ func configure_app_net_profile(task *Vservice) (string, string, []string) {
 	return "", "", ssl_certs
 }
 
-func configure_services(task *Vservice) []map[string]interface{} {
+func configure_services(task *Vservice, vs map[string]interface{}) []map[string]interface{} {
 	var s []map[string]interface{}
 	for _, pool := range task.pools {
 		for _, privateport := range pool.ports {
@@ -111,8 +141,9 @@ func configure_services(task *Vservice) []map[string]interface{} {
 			if !found {
 				services := make(map[string]interface{})
 				services["port"] = privateport
-				if privateport == 443 {
+				if vs["application_profile_ref"] == "/api/applicationprofile?name="+APP_PROFILE_HTTPS {
 					services["enable_ssl"] = true
+					services["port"] = 443
 				}
 				s = append(s, services)
 			}
@@ -167,9 +198,11 @@ func configure_pool_hms(task *Vservice) ([]string, string) {
 	return hm, ssl_prof
 }
 
-func configure_pool_servers(task *Vservice) []map[string]interface{} {
+func configure_pool_servers(task *Vservice) ([]map[string]interface{}, string) {
 	var s []map[string]interface{}
+	var name string
 	for _, pool := range task.pools {
+		name = pool.poolName
 		for publicport, _ := range pool.ports {
 			server := make(map[string]interface{})
 			ip := make(map[string]interface{})
@@ -180,12 +213,11 @@ func configure_pool_servers(task *Vservice) []map[string]interface{} {
 			s = append(s, server)
 		}
 	}
-	return s
+	return s, name
 }
 
-func (p *Avi)configure_pool(task *Vservice, create bool, vs_update map[string]interface{}) map[string]interface{} {
+func (p *Avi)configure_pool(task *Vservice, create bool, pg map[string]interface{}) map[string]interface{} {
 	pool := make(map[string]interface{})
-	pool["name"] = task.poolName
 	pool["cloud_ref"] = p.cloudRef
 	pool["tenant_ref"], _ = p.aviSession.GetTenantRef(p.cfg.tenant)
 	hm_refs, ssl_prof := configure_pool_hms(task)
@@ -195,12 +227,40 @@ func (p *Avi)configure_pool(task *Vservice, create bool, vs_update map[string]in
 	if ssl_prof != "" {
 		pool["ssl_profile_ref"] = ssl_prof
 	}
-	pool["servers"] = configure_pool_servers(task)
+	pool["servers"], pool["name"] = configure_pool_servers(task)
 	if !create {
-		pool_tokens := strings.Split(vs_update["pool_ref"].(string), "/")
-		pool["uuid"] = pool_tokens[len(pool_tokens)-1]
+		for _, poolmem := range pg["members"].([]interface{}) {
+			pool_tokens := strings.Split(poolmem.(map[string]interface{})["pool_ref"].(string), "/")
+			pool["uuid"] = pool_tokens[len(pool_tokens)-1]
+		}
 	}
 	return pool
+}
+
+func (p *Avi)configure_poolgmembers(task *Vservice, create bool, vs_update map[string]interface{}) ([]map[string]interface{}) {
+	var poolg []map[string]interface{}
+	var pg map[string]interface{}
+	poolgmem := make(map[string]interface{})
+	if !create {
+		pg_name := fmt.Sprintf("%s-poolgroup", task.serviceName)
+		pg, _ = p.GetPoolGroup(pg_name)
+	}
+	poolgmem["pool_ref_data"] = p.configure_pool(task, create, pg)
+	poolg = append(poolg, poolgmem)	
+	return poolg
+}
+
+func (p *Avi)configure_poolgroup(task *Vservice, create bool, vs_update map[string]interface{}) map[string]interface{} {
+	poolg := make(map[string]interface{})
+	poolg["cloud_ref"] = p.cloudRef
+	poolg["tenant_ref"], _ = p.aviSession.GetTenantRef(p.cfg.tenant)
+	poolg["name"] = fmt.Sprintf("%s-poolgroup", task.serviceName)
+	poolg["members"] = p.configure_poolgmembers(task, create, vs_update)
+	if !create {
+		poolg_tokens := strings.Split(vs_update["pool_group_ref"].(string), "/")
+		poolg["uuid"] = poolg_tokens[len(poolg_tokens)-1]
+	}
+	return poolg
 }
 
 func (p *Avi) CreateUpdateVS(task *Vservice, create bool, vs_update map[string]interface{}) {
@@ -231,9 +291,9 @@ func (p *Avi) CreateUpdateVS(task *Vservice, create bool, vs_update map[string]i
 		vs["ssl_key_and_certificate_refs"] = ssl_certs
 	}
 
-	vs["services"] = configure_services(task)
+	vs["services"] = configure_services(task, vs)
 
-	vs["pool_ref_data"] = p.configure_pool(task, create, vs_update)
+	vs["pool_group_ref_data"] = p.configure_poolgroup(task, create, vs_update)
 
 	if !create {
 		vs["uuid"] = vs_update["uuid"]
@@ -243,6 +303,8 @@ func (p *Avi) CreateUpdateVS(task *Vservice, create bool, vs_update map[string]i
 	model := make(map[string]interface{})
 	model["data"] = vs
 	model["model_name"] = "VirtualService"
+
+	vs = update_labels_data(task, vs)
 
 	if create {
 		resp, err = p.aviSession.Post("/api/macro", model)

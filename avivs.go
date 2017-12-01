@@ -266,6 +266,26 @@ func (p *Avi) GetVS(vsname string) (map[string]interface{}, error) {
 	return nres.(map[string]interface{}), nil
 }
 
+func (p *Avi) GetPoolGroup(pg string) (map[string]interface{}, error) {
+	resp := make(map[string]interface{})
+	res, err := p.aviSession.GetCollection("/api/poolgroup?name=" + pg)
+	if err != nil {
+		log.Infof("Avi PoolGroup Exists check failed: %v", err)
+		return resp, err
+	}
+
+	if res.Count == 0 {
+		return resp, fmt.Errorf("Pool Group %s does not exist on the Avi Controller",
+			pg)
+	}
+	nres, err := ConvertAviResponseToMapInterface(res.Results[0])
+	if err != nil {
+		log.Infof("PoolGroup unmarshal failed: %v", string(res.Results[0]))
+		return resp, err
+	}
+	return nres.(map[string]interface{}), nil
+}
+
 func (p *Avi) GetAllVses() ([]map[string]interface{}, error) {
 	allVses := make([]map[string]interface{}, 0)
 	res, err := p.aviSession.GetCollection("/api/virtualservice?created_by=Rancher")
