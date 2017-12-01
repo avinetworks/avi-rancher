@@ -6,6 +6,7 @@ import (
 	"github.com/rancher/go-rancher-metadata/metadata"
         "github.com/gorilla/mux"
         "net/http"
+	"os"
 )
 
 const (
@@ -18,9 +19,7 @@ var (
 	p = new(Avi)
 	m metadata.Client
 )
-
-var log *logrus.Entry
-
+var log = logrus.New()
 type Avi struct {
 	aviSession *AviSession
 	cfg        *AviConfig
@@ -49,9 +48,11 @@ func healthcheck(w http.ResponseWriter, req *http.Request) {
 }
 
 func initLogger() {
-	log = logrus.WithFields(logrus.Fields{
-		"provider": ProviderName,
-	})
+	f, err := os.OpenFile("/var/log/avi-rancher.log", os.O_APPEND | os.O_CREATE | os.O_RDWR, 0666)
+	if err != nil {
+		log.Info("error opening file: %v", err)
+	}
+	log.Out = f
 }
 
 func (p *Avi) Init() error {
