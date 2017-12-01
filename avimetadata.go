@@ -10,11 +10,6 @@ import (
 	"github.com/rancher/go-rancher-metadata/metadata"
 )
 
-const (
-	AVI_INTEGRATION_LABEL = "avi_proxy"
-	AVI_SSL_LABEL = "ssl_key_and_certificate_refs"
-)
-
 func getEnvironmentUUID(m metadata.Client) (string, error) {
 	timeout := 30 * time.Second
 	var err error
@@ -32,6 +27,23 @@ func getEnvironmentUUID(m metadata.Client) (string, error) {
 	return "", fmt.Errorf("Error reading stack info: %v", err)
 }
 
+func getEnvironmentName(m metadata.Client) (string, error) {
+	timeout := 30 * time.Second
+	var err error
+	var stack metadata.Stack
+	for i := 1 * time.Second; i < timeout; i *= time.Duration(2) {
+		stack, err = m.GetSelfStack()
+		if err != nil {
+			logrus.Errorf("Error reading stack info: %v...will retry", err)
+			time.Sleep(i)
+		} else {
+			return stack.EnvironmentName, nil
+		}
+	}
+
+	return "", fmt.Errorf("Error reading stack info: %v", err)
+}
+
 func GetMetadataServiceConfigs(m metadata.Client, cfg *AviConfig) (map[string]*Vservice, error) {
         Vservices := make(map[string]*Vservice)
         services, err := m.GetServices()
@@ -41,6 +53,7 @@ func GetMetadataServiceConfigs(m metadata.Client, cfg *AviConfig) (map[string]*V
         }
 	for _, service := range services {
 		pools := []pool{}
+		var serviceName string
 		labels := make(map[string]string)
 		_, ok := service.Labels[AVI_INTEGRATION_LABEL]
 		if ok {
@@ -88,7 +101,9 @@ func GetMetadataServiceConfigs(m metadata.Client, cfg *AviConfig) (map[string]*V
 					continue
 				}
 				proto := protospec[1]
-				s, ok := Vservices[service.Name]
+				envname, _ := getEnvironmentName(m)
+				serviceName = fmt.Sprintf("%s-%s-%s", envname, service.StackName, service.Name)
+				s, ok := Vservices[serviceName]
 				found := false
 				if ok {
 					for _, val := range s.pools {
@@ -110,18 +125,17 @@ func GetMetadataServiceConfigs(m metadata.Client, cfg *AviConfig) (map[string]*V
 
 				poolmem.ports = ports
 				poolmem.protocol = proto
+				poolmem.poolName = fmt.Sprintf("%s-pool-%d-%s", serviceName, hostport, proto)
 				pools = append(pools, poolmem)
 			}
 		}
 		if len(pools) > 0 {
-			envuuid, _ := getEnvironmentUUID(m)
 			dt := Vservice{}
-			dt.serviceName = fmt.Sprintf("%s_%s", service.StackName, service.Name)
-			dt.poolName = fmt.Sprintf("%s_%s_%s_%s", service.Name, service.StackName, envuuid, cfg.lbSuffix)
+			dt.serviceName = serviceName
 			dt.labels = labels
 			dt.pools = pools
-			Vservices[service.Name] = &dt
-			log.Info(Vservices[service.Name])
+			Vservices[dt.serviceName] = &dt
+			log.Info(Vservices[dt.serviceName])
 		}
 	}
 	return Vservices, err

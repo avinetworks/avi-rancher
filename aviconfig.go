@@ -18,7 +18,6 @@ const (
 	AVI_SSL_VERIFY           = "AVI_SSL_VERIFY"
 	AVI_CA_CERT_PATH         = "AVI_CA_CERT_PATH"
 	AVI_CLOUD_NAME           = "AVI_CLOUD_NAME"
-	LB_TARGET_RANCHER_SUFFIX = "LB_TARGET_RANCHER_SUFFIX"
 	AVI_DNS_SUBDOMAIN        = "AVI_DNS_SUBDOMAIN"
 	AVI_TENANT               = "AVI_TENANT"
 
@@ -35,7 +34,6 @@ type AviConfig struct {
 	caCertPath       string
 	cloudName        string
 	dnsSubDomain     string
-	lbSuffix         string
 	tenant         string
 }
 
@@ -59,7 +57,6 @@ func GetAviConfig() (*AviConfig, error) {
 	conf[AVI_CONTROLLER_PORT] = os.Getenv(AVI_CONTROLLER_PORT)
 	conf[AVI_SSL_VERIFY] = os.Getenv(AVI_SSL_VERIFY)
 	conf[AVI_CA_CERT_PATH] = os.Getenv(AVI_CA_CERT_PATH)
-	conf[LB_TARGET_RANCHER_SUFFIX] = os.Getenv(LB_TARGET_RANCHER_SUFFIX)
 
 	// Assume VSes already configured in a given cloud only
 	conf[AVI_CLOUD_NAME] = os.Getenv(AVI_CLOUD_NAME)
@@ -145,11 +142,6 @@ func validateConfig(conf map[string]string) (*AviConfig, error) {
 	} else {
 		cfg.dnsSubDomain = conf[AVI_DNS_SUBDOMAIN]
 	}
-
-	if conf[LB_TARGET_RANCHER_SUFFIX] == "" {
-		conf[LB_TARGET_RANCHER_SUFFIX] = "rancher.internal"
-	}
-	cfg.lbSuffix = conf[LB_TARGET_RANCHER_SUFFIX]
 
 	return cfg, nil
 }

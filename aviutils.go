@@ -23,7 +23,7 @@ func (p *Avi) updateVs(vs map[string]interface{}) error {
 func (p *Avi) updateVsMetadata(vs map[string]interface{}) error {
 	log.Infof("Updating service metadata for vs %s",
 		vs["name"].(string))
-	vs["service_metadata"] = p.cfg.lbSuffix
+	//vs["service_metadata"] = p.cfg.lbSuffix
 	return p.updateVs(vs)
 }
 
@@ -46,14 +46,14 @@ func (p *Avi) checkExisitngPool(vs map[string]interface{},
 		return aviPool, nil
 	}
 
-	if strings.HasSuffix(aviPoolName, p.cfg.lbSuffix) {
+/*	if strings.HasSuffix(aviPoolName, p.cfg.lbSuffix) {
 		vsName := vs["name"].(string)
 		svcName := SvcNameFromRnchrPoolName(aviPoolName)
 		// go p.RaiseDuplicateLabelEvent(vsName, svcName)
 		err := fmt.Errorf("Lable/VS %s already used by service %s",
 			vsName, svcName)
 		return empty, err
-	}
+	}*/
 
 	// overwrite the pool name to match with what Rancher provides
 	aviPool["name"] = rnchrPoolName
@@ -177,14 +177,14 @@ func VsHasMetadata(vs map[string]interface{}, metadata string) bool {
 	return false
 }
 
-func (p *Avi) IsAssociatedVs(vs map[string]interface{}) bool {
-	if VsFromCloud(vs, p.cloudRef) &&
-		VsHasMetadata(vs, p.cfg.lbSuffix) {
-		return true
-	}
-
-	return false
-}
+//func (p *Avi) IsAssociatedVs(vs map[string]interface{}) bool {
+//	if VsFromCloud(vs, p.cloudRef) &&
+//		VsHasMetadata(vs, p.cfg.lbSuffix) {
+//		return true
+//	}
+//
+//	return false
+//}
 
 //func (p *Avi) addNewMembersToPool(pool map[string]interface{},
 //	config model.LBConfig) error {
