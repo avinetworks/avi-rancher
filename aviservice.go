@@ -25,7 +25,6 @@ const (
 
 	AVI_INTEGRATION_LABEL       = "avi_proxy"
 	AVI_SSL_LABEL               = "avi_ssl_key_and_certificate_refs"
-	AVI_CLOOUD_REF              = "avi_cloud_ref"
 	AVI_FQDN                    = "avi_fqdn"
 	AVI_APPLICATION_PROFILE_REF = "avi_application_profile_ref"
 )
@@ -44,11 +43,6 @@ type pool struct {
 }
 
 func update_labels_data(task *Vservice, vs map[string]interface{}) map[string]interface{} {
-	cloud, ok := task.labels[AVI_CLOOUD_REF]
-	if ok {
-		vs["cloud_ref"] = "/api/cloud?name="+cloud
-		log.Info("Overwriting the service cloud with ", cloud)
-	}
 	fqdn, ok := task.labels[AVI_FQDN]
 	if ok {
 		vs["fqdn"] = fqdn

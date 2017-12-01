@@ -1,5 +1,5 @@
 avi:
-  image: srinivassurishetty/avi-lb:11
+  image: srinivassurishetty/avi-rancher
   expose: 
    - 1000
   environment:
@@ -9,9 +9,5 @@ avi:
     AVI_CONTROLLER_PORT: ${AVI_CONTROLLER_PORT}
     AVI_SSL_VERIFY: ${AVI_SSL_VERIFY}
     AVI_CLOUD_NAME: ${AVI_CLOUD_NAME}
-    LB_TARGET_RANCHER_SUFFIX: ${LB_TARGET_RANCHER_SUFFIX}
     AVI_DNS_SUBDOMAIN: ${AVI_DNS_SUBDOMAIN}
     AVI_TENANT: ${AVI_TENANT}
-  labels:
-    io.rancher.container.create_agent: "true"
-    io.rancher.container.agent.role: "external-lb"
