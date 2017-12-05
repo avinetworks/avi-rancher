@@ -10,11 +10,11 @@ This provider load balances Rancher services using Avi Vantage Platform Load Bal
 ## Usage
 
 1. Deploy the stack for this provider from Rancher Community Catalog.
-   While deploying, you need to give the username, password (optional,
-   read below), Avi Controller IP address, Avi Controller Port, the
-   Cloud name where Virtual Services and Pools are created.
+   While deploying, you need to give the username, password,
+   Avi Controller IP address, Avi Controller Port, the Cloud name
+   where Virtual Services and Pools are created.
 2. Create services in Rancher with public host port mapping and corresponding
-   Virtual services are created in Avi. All CRUD operations on service get
+   Virtual services are created in Avi. All CRUD operations on services get
    reflected in Avi Controller and Service Engine.
 3. You can scale out/in the service and the changes will get reflected on
    Avi Controller and Service Engine.
