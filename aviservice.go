@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"io"
 	"strings"
+	"encoding/json"
 )
 
 const (
@@ -23,10 +24,8 @@ const (
 	SSL_STANDARD_CERT           = "System-Default-Cert"
 
 
-	AVI_INTEGRATION_LABEL       = "avi_proxy"
-	AVI_SSL_LABEL               = "avi_ssl_key_and_certificate_refs"
-	AVI_FQDN                    = "avi_fqdn"
-	AVI_APPLICATION_PROFILE_REF = "avi_application_profile_ref"
+	AVI_INTEGRATION_LABEL       = "no_avi_proxy"
+	AVI_PROXY_LABEL             = "avi_proxy"
 )
 
 type Vservice struct {
@@ -42,22 +41,43 @@ type pool struct {
         ports map[int]int // Host to Container port mapping
 }
 
-func update_labels_data(task *Vservice, vs map[string]interface{}) map[string]interface{} {
-	fqdn, ok := task.labels[AVI_FQDN]
-	if ok {
-		vs["fqdn"] = fqdn
-		log.Info("Overwriting the service fqdn with ", fqdn)
-	}
-	app, ok := task.labels[AVI_APPLICATION_PROFILE_REF]
-	if ok {
-		vs["application_profile_ref"] = "/api/applicationprofile?name="+app
-		log.Info("Overwriting the service application profile with ", app)
-		if app == APP_PROFILE_HTTPS {
-			vs["ssl_key_and_certificate_refs"] = configure_ssl(task)
-			vs["services"] = configure_services(task, vs)
+
+func apply_labels_data(vs map[string]interface{}, result interface{}) {
+	for k, v := range result.(map[string]interface{}) {
+		switch v.(type) {
+			case string:
+				vs[k] = v
+			case bool:
+				vs[k] = v
+			case []string:
+				vs[k] = v
+			case uint32:
+				vs[k] = v
+			case []interface{}:
+				_, ok := vs[k].([]map[string]interface{})
+				if ok {
+					for i, j := range v.([]interface{}) {
+						if i < len(vs[k].([]map[string]interface{})) {
+							apply_labels_data((vs[k].([]map[string]interface{})[i]), j)
+						} else {
+							vs[k] = append(vs[k].([]map[string]interface{}), j.(map[string]interface{}))
+						}
+					}
+				} else {
+					vs[k] = v
+				}
+			case map[string]interface{}:
+				_, ok := vs[k].(map[string]interface{})
+				if ok {
+					apply_labels_data(vs[k].(map[string]interface{}), v)
+				} else {
+					vs[k] = v
+				}
+			default:
+				vs[k] = v
 		}
 	}
-	return vs
+	return
 }
 
 func CalculateChecksum(task *Vservice) []byte {
@@ -87,12 +107,14 @@ func configure_vip() []map[string]interface{} {
 	return slice
 }
 
-func configure_fqdn(relname string, subdomain string) string {
+func configure_fqdn(relname string, subdomain string) []map[string]interface{} {
+	var dns []map[string]interface{}
+	d := make(map[string]interface{})
 	if subdomain != "" {
-		fqdn := relname+"."+subdomain
-		return fqdn
+		d["fqdn"] = relname+"."+subdomain
+		dns = append(dns, d)
 	}
-	return ""
+	return dns
 }
 
 func configure_app_net_profile(task *Vservice) (string, string, []string) {
@@ -148,14 +170,8 @@ func configure_services(task *Vservice, vs map[string]interface{}) []map[string]
 
 func configure_ssl(task *Vservice) ([]string) {
 	var ssl_cert []string
-	ssl_label, ok := task.labels[AVI_SSL_LABEL]
-	if ok {
-		ssl := "/api/sslkeyandcertificate?name="+ssl_label
-		ssl_cert = append(ssl_cert, ssl)
-	} else {
-		ssl := "/api/sslkeyandcertificate?name="+SSL_STANDARD_CERT
-		ssl_cert = append(ssl_cert, ssl)
-	}	
+	ssl := "/api/sslkeyandcertificate?name="+SSL_STANDARD_CERT
+	ssl_cert = append(ssl_cert, ssl)
 	return ssl_cert
 }
 
@@ -228,6 +244,21 @@ func (p *Avi)configure_pool(task *Vservice, create bool, pg map[string]interface
 			pool["uuid"] = pool_tokens[len(pool_tokens)-1]
 		}
 	}
+
+	val, ok := task.labels[AVI_PROXY_LABEL]
+	if ok {
+		var result map[string]interface{}
+		arr := []byte(val)
+		err := json.Unmarshal(arr, &result)
+		if err == nil {
+			_, ok := result["pool"]
+			if ok {
+				log.Info("applying label data ", result)
+				apply_labels_data(pool, result["pool"])
+			}
+		}
+	}
+
 	return pool
 }
 
@@ -267,9 +298,9 @@ func (p *Avi) CreateUpdateVS(task *Vservice, create bool, vs_update map[string]i
 
 	vs["vip"] = configure_vip()
 
-	fqdn := configure_fqdn(task.serviceName, p.cfg.dnsSubDomain)
-	if fqdn != "" {
-		vs["fqdn"] = fqdn
+	dns_info := configure_fqdn(task.serviceName, p.cfg.dnsSubDomain)
+	if len(dns_info) > 0 {
+		vs["dns_info"] = dns_info
 	}
 
 	vs["tenant_ref"], _ = p.aviSession.GetTenantRef(p.cfg.tenant)
@@ -293,12 +324,28 @@ func (p *Avi) CreateUpdateVS(task *Vservice, create bool, vs_update map[string]i
 		vs["uuid"] = vs_update["uuid"]
 	}
 
+	val, ok := task.labels[AVI_PROXY_LABEL]
+	if ok {
+		var result map[string]interface{}
+		arr := []byte(val)
+		err := json.Unmarshal(arr, &result)
+		if err == nil {
+			_, ok := result["virtualservice"]
+			if ok {
+				servicename, ok := result["virtualservice"].(map[string]interface{})["name"]
+				if ok {
+					task.serviceName = servicename.(string)
+				}
+				log.Info("applying label data ", result)
+				apply_labels_data(vs, result["virtualservice"])
+			}
+		}
+	}
+
 	var err error
 	model := make(map[string]interface{})
 	model["data"] = vs
 	model["model_name"] = "VirtualService"
-
-	vs = update_labels_data(task, vs)
 
 	if create {
 		resp, err = p.aviSession.Post("/api/macro", model)

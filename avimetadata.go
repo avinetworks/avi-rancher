@@ -178,12 +178,16 @@ func parse_docker_tasks(p *Avi, tasks map[string]*Vservice) {
 		return
 	}
 	for _, vs := range vses {
-		if vs["created_by"] != "Rancher" {
-			continue
-		}
 		vs_name := vs["name"].(string)
-		if _, ok := tasks[vs_name]; !ok {
+		found := false
+		for _, dt := range tasks {
+			if dt.serviceName == vs_name {
+				found = true
+				break
+			}
+		}
+		if !found {
 			p.DeleteVS(vs)
 		}
-	}	
+	}
 }
