@@ -83,9 +83,9 @@ func apply_labels_data(vs map[string]interface{}, result interface{}) {
 func CalculateChecksum(task *Vservice) []byte {
 	h := md5.New()
 	io.WriteString(h, task.serviceName)
-	for key, val := range task.labels {
-		label := key+":"+val
-		io.WriteString(h, label)
+	val, ok := task.labels[AVI_PROXY_LABEL]
+	if ok {
+		io.WriteString(h, val)
 	}
 	for _, val := range task.pools {
 		io.WriteString(h, val.protocol)
@@ -332,10 +332,6 @@ func (p *Avi) CreateUpdateVS(task *Vservice, create bool, vs_update map[string]i
 		if err == nil {
 			_, ok := result["virtualservice"]
 			if ok {
-				servicename, ok := result["virtualservice"].(map[string]interface{})["name"]
-				if ok {
-					task.serviceName = servicename.(string)
-				}
 				log.Info("applying label data ", result)
 				apply_labels_data(vs, result["virtualservice"])
 			}

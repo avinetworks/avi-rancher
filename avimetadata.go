@@ -5,6 +5,7 @@ import (
 	"time"
 	"strings"
 	"strconv"
+	"encoding/json"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/rancher/go-rancher-metadata/metadata"
@@ -54,10 +55,25 @@ func GetMetadataServiceConfigs(m metadata.Client, cfg *AviConfig) (map[string]*V
 	for _, service := range services {
 		pools := []pool{}
 		var serviceName string
+		label_sname := ""
 		labels := make(map[string]string)
 		_, ok := service.Labels[AVI_INTEGRATION_LABEL]
 		if ok {
 			continue
+		}
+		if val, ok := service.Labels[AVI_PROXY_LABEL]; ok {
+			var result map[string]interface{}
+			arr := []byte(val)
+			err := json.Unmarshal(arr, &result)
+			if err == nil {
+				_, ok := result["virtualservice"]
+				if ok {
+					val, ok := result["virtualservice"].(map[string]interface{})["name"]
+					if ok {
+						label_sname = val.(string)
+					}
+				}
+			}
 		}
 		for label, val := range service.Labels {
 			labels[label] = val
@@ -102,7 +118,11 @@ func GetMetadataServiceConfigs(m metadata.Client, cfg *AviConfig) (map[string]*V
 				}
 				proto := protospec[1]
 				envname, _ := getEnvironmentName(m)
-				serviceName = fmt.Sprintf("%s-%s-%s", envname, service.StackName, service.Name)
+				if label_sname == "" {
+					serviceName = fmt.Sprintf("%s-%s-%s", envname, service.StackName, service.Name)
+				} else {
+					serviceName = label_sname
+				}
 				s, ok := Vservices[serviceName]
 				found := false
 				if ok {
@@ -179,14 +199,7 @@ func parse_docker_tasks(p *Avi, tasks map[string]*Vservice) {
 	}
 	for _, vs := range vses {
 		vs_name := vs["name"].(string)
-		found := false
-		for _, dt := range tasks {
-			if dt.serviceName == vs_name {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if _, ok := tasks[vs_name]; !ok {
 			p.DeleteVS(vs)
 		}
 	}
