@@ -73,6 +73,19 @@ func apply_labels_data(vs map[string]interface{}, result interface{}) {
 				} else {
 					vs[k] = v
 				}
+			case []map[string]interface{}:
+				_, ok := vs[k].([]interface{})
+				if ok {
+					for i, j := range v.([]map[string]interface{}) {
+						if i < len(vs[k].([]interface{})) {
+							apply_labels_data((vs[k].([]interface{})[i]).(map[string]interface{}), j)
+						} else {
+							vs[k] = append(vs[k].([]interface{}), j)
+						}
+					}
+				} else {
+					vs[k] = v
+				}
 			default:
 				vs[k] = v
 		}
@@ -320,10 +333,6 @@ func (p *Avi) CreateUpdateVS(task *Vservice, create bool, vs_update map[string]i
 
 	vs["pool_group_ref_data"] = p.configure_poolgroup(task, create, vs_update)
 
-	if !create {
-		vs["uuid"] = vs_update["uuid"]
-	}
-
 	val, ok := task.labels[AVI_PROXY_LABEL]
 	if ok {
 		var result map[string]interface{}
@@ -340,7 +349,12 @@ func (p *Avi) CreateUpdateVS(task *Vservice, create bool, vs_update map[string]i
 
 	var err error
 	model := make(map[string]interface{})
-	model["data"] = vs
+	if !create {
+		apply_labels_data(vs_update, vs)
+		model["data"] = vs_update
+	} else {
+		model["data"] = vs
+	}
 	model["model_name"] = "VirtualService"
 
 	if create {
