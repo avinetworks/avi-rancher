@@ -82,11 +82,6 @@ func GetMetadataServiceConfigs(m metadata.Client, cfg *AviConfig) (map[string]*V
 			if len(container.ServiceName) == 0 {
 				continue
 			}
-			if !containerStateOK(container) {
-				log.Infof("Skipping container %s with state '%s' and health '%s'",
-					container.Name, container.State, container.HealthState)
-				continue
-			}
 			if len(container.Ports) == 0 {
 				continue
 			}

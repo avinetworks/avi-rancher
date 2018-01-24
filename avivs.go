@@ -40,7 +40,8 @@ func InitAviSession(cfg *AviConfig) (*AviSession, error) {
 	aviSession := NewAviSession(netloc,
 		cfg.username,
 		cfg.password,
-		insecure)
+		insecure,
+		cfg.tenant)
 	err := aviSession.InitiateSession()
 	return aviSession, err
 }

@@ -91,7 +91,7 @@ type AviSession struct {
 	cont_version string
 }
 
-func NewAviSession(host string, username string, password string, insecure bool) *AviSession {
+func NewAviSession(host string, username string, password string, insecure bool, tenant string) *AviSession {
 	avisess := &AviSession{
 		host:     host,
 		username: username,
@@ -101,7 +101,7 @@ func NewAviSession(host string, username string, password string, insecure bool)
 	avisess.sessionid = ""
 	avisess.csrf_token = ""
 	avisess.prefix = "https://" + avisess.host + "/"
-	avisess.Tenant = ""
+	avisess.Tenant = tenant
 	avisess.cont_version = ""
 	return avisess
 }

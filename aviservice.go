@@ -377,7 +377,7 @@ func (p *Avi) DeleteVS(vs map[string]interface{}) {
 	model["model_name"] = "VirtualService"
 	resp, err = p.aviSession.Del("/api/macro", model)
 	if err != nil {
-		log.Infof("Error deleting VS %s: %v", vs, resp)
+		log.Infof("Error deleting VS %s %s: %v", model, resp, err)
 	} else {
 		log.Infof("VS %s deleted %v", vs["name"], resp)
 	}
